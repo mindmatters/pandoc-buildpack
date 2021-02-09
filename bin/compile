@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# edc: based on the following buildpack
-# https://github.com/ello/heroku-buildpack-imagemagick
+# fqxp: based on the following buildpack
+# https://github.com/illustrativemathematics/pandoc-buildpack
 
 indent() {
     sed 's/^/       /'
@@ -11,37 +11,29 @@ verbose() {
     echo "-----> $1"
 }
 
-######################################
-# To update pandoc, edit the release #
-######################################
-
-# e.g. https://github.com/jgm/pandoc/releases/download/2.3.1/pandoc-2.3.1-1-amd64.deb
-PANDOC_BASE_URL="https://github.com/jgm/pandoc/releases/download"
-PANDOC_RELASE_DIR="2.11.4"
-PANDOC_RELEASE="pandoc-2.11.4-1-amd64.deb"
-PANDOC_URL="$PANDOC_BASE_URL/$PANDOC_RELASE_DIR/$PANDOC_RELEASE"
-
-verbose "Install pandoc from $PANDOC_URL"
-
 BUILD_DIR=$1
 CACHE_DIR=$2
 VENDOR_DIR="$BUILD_DIR/vendor"
 INSTALL_DIR="$VENDOR_DIR/pandoc"
-BIN_DIR="$INSTALL_DIR/bin"
-SHARE_DIR="$INSTALL_DIR/share"
-REAL_DIR="$HOME/vendor/pandoc/bin"
-DEB_ARCHIVE_BINARIES="data.tar.xz"
-PANDOC_PKG="$CACHE_DIR/$PANDOC_RELEASE"
 
-mkdir -p $BUILD_DIR $CACHE_DIR $VENDOR_DIR $INSTALL_DIR $BIN_DIR $SHARE_DIR $REAL_DIR
+if [ ! -f "$BUILD_DIR/.pandoc-version" ] ; then
+  verbose "Please add a .pandoc-version file in your application root to make this work."
+  exit 1
+fi
+
+PANDOC_RELEASE="$(cat $BUILD_DIR/.pandoc-version)"
+PANDOC_URL="https://github.com/jgm/pandoc/releases/download/${PANDOC_RELEASE}/pandoc-${PANDOC_RELEASE}-linux-amd64.tar.gz"
+PANDOC_PKG="$CACHE_DIR/$(basename $PANDOC_URL)"
+
+verbose "Install pandoc from $PANDOC_URL"
+
+mkdir -p $BUILD_DIR $CACHE_DIR $VENDOR_DIR $INSTALL_DIR
 
 verbose "BUILD_DIR: $BUILD_DIR"
 verbose "CACHE_DIR: $CACHE_DIR"
 verbose "VENDOR_DIR: $VENDOR_DIR"
 verbose "INSTALL_DIR: $INSTALL_DIR"
-verbose "BIN_DIR: $BIN_DIR"
-verbose "SHARE_DIR: $SHARE_DIR"
-verbose "REAL_DIR: $REAL_DIR"
+verbose "PANDOC_PKG: $PANDOC_PKG"
 
 if [ -f $PANDOC_PKG ]; then
   verbose "Using cached pandoc pkg: $PANDOC_PKG"
@@ -57,23 +49,17 @@ else
     fi
 fi
 
-verbose "Extract pandoc from $PANDOC_PKG to $INSTALL_DIR"
+verbose "Extract pandoc binary from $PANDOC_PKG to $INSTALL_DIR"
 
-ar p $PANDOC_PKG $DEB_ARCHIVE_BINARIES \
-    | tar --extract \
-          --xz \
-          --strip-components 2 \
-          --directory $INSTALL_DIR | indent
-
-verbose "Set permissions on extracted binaries"
-chmod 755 $BIN_DIR/pandoc
+verbose "tar -xzf $PANDOC_PKG -C $INSTALL_DIR --strip-components=2 pandoc-${PANDOC_RELEASE}/bin/pandoc"
+tar -xzf $PANDOC_PKG -C $INSTALL_DIR --strip-components=2 pandoc-${PANDOC_RELEASE}/bin/pandoc
 
 verbose "Extracted files:"
-ls -lR $BIN_DIR | indent
+ls -lR $INSTALL_DIR | indent
 
 PROFILE_PATH="$BUILD_DIR/.profile.d/pandoc.sh"
 mkdir -p $(dirname $PROFILE_PATH)
-echo "export PATH=$REAL_DIR:\$PATH" > $PROFILE_PATH
+echo "export PATH=$HOME/vendor/pandoc:\$PATH" > $PROFILE_PATH
 
 verbose "created $PROFILE_PATH:"
 cat $PROFILE_PATH | indent
